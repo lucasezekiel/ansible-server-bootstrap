@@ -1,0 +1,53 @@
+---
+- name: Crear usuario administrador con sudo
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    groups: sudo
+    append: true
+    shell: /bin/bash
+    create_home: true
+
+- name: Copiar clave SSH pública al usuario administrador
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    state: present
+    key: "{{ lookup('file', ssh_pubkey_path) }}"
+
+- name: Deshabilitar autenticación por contraseña en SSH
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: 'PasswordAuthentication no'
+  notify: Reiniciar SSH
+
+- name: Deshabilitar login de root por SSH
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: 'PermitRootLogin no'
+  notify: Reiniciar SSH
+
+- name: Instalar UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: true
+
+- name: Política por defecto - denegar entrante
+  community.general.ufw:
+    default: deny
+    direction: incoming
+
+- name: Política por defecto - permitir saliente
+  community.general.ufw:
+    default: allow
+    direction: outgoing
+
+- name: Permitir SSH en el firewall
+  community.general.ufw:
+    rule: allow
+    name: OpenSSH
+
+- name: Habilitar UFW
+  community.general.ufw:
+    state: enabled

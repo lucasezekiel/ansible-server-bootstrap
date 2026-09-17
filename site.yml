@@ -1,0 +1,6 @@
+---
+- name: Bootstrap y hardening de servidor Ubuntu
+  hosts: all
+  become: true
+  roles:
+    - security
