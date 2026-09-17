@@ -1,2 +1,19 @@
 admin_user: lucas
 ssh_pubkey_path: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519.pub"
+
+common_packages:
+  - git
+  - curl
+  - wget
+  - htop
+  - unzip
+  - ca-certificates
+
+timezone: "America/Argentina/Buenos_Aires"
+
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
