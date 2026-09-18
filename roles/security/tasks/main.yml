@@ -51,3 +51,10 @@
 - name: Habilitar UFW
   community.general.ufw:
     state: enabled
+
+- name: Otorgar sudo sin contraseña al usuario administrador
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/{{ admin_user }}"
+    content: "{{ admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    validate: 'visudo -cf %s'
+    mode: '0440'

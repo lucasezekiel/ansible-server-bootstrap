@@ -17,3 +17,6 @@ docker_packages:
   - containerd.io
   - docker-buildx-plugin
   - docker-compose-plugin
+
+node_exporter_version: "1.12.1"
+monitoring_dir: "/opt/monitoring"
