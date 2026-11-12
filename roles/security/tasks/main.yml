@@ -13,19 +13,36 @@
     state: present
     key: "{{ lookup('file', ssh_pubkey_path) }}"
 
-- name: Deshabilitar autenticación por contraseña en SSH
-  ansible.builtin.lineinfile:
-    path: /etc/ssh/sshd_config
-    regexp: '^#?PasswordAuthentication'
-    line: 'PasswordAuthentication no'
+- name: Configurar restricciones SSH en un archivo de prioridad temprana
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-ansible-hardening.conf
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+    owner: root
+    group: root
+    mode: '0644'
+    validate: '/usr/sbin/sshd -t -f %s'
   notify: Reiniciar SSH
 
-- name: Deshabilitar login de root por SSH
-  ansible.builtin.lineinfile:
-    path: /etc/ssh/sshd_config
-    regexp: '^#?PermitRootLogin'
-    line: 'PermitRootLogin no'
-  notify: Reiniciar SSH
+- name: Consultar configuración SSH efectiva antes de reiniciar
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/sshd
+      - -T
+  register: security_ssh_effective_config
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Verificar restricciones SSH globales antes de reiniciar
+  ansible.builtin.assert:
+    that:
+      - "'passwordauthentication no' in security_ssh_effective_config.stdout_lines"
+      - "'kbdinteractiveauthentication no' in security_ssh_effective_config.stdout_lines"
+      - "'permitrootlogin no' in security_ssh_effective_config.stdout_lines"
+    fail_msg: "La configuración SSH efectiva no cumple las restricciones esperadas; no se reiniciará el servicio."
+  when: not ansible_check_mode
 
 - name: Instalar UFW
   ansible.builtin.apt:
@@ -51,10 +68,3 @@
 - name: Habilitar UFW
   community.general.ufw:
     state: enabled
-
-- name: Otorgar sudo sin contraseña al usuario administrador
-  ansible.builtin.copy:
-    dest: "/etc/sudoers.d/{{ admin_user }}"
-    content: "{{ admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
-    validate: 'visudo -cf %s'
-    mode: '0440'

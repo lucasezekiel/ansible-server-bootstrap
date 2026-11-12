@@ -10,7 +10,7 @@
 
 - name: Descargar y extraer node_exporter
   ansible.builtin.unarchive:
-    src: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+    src: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/{{ node_exporter_archive }}"
     dest: /tmp
     remote_src: true
     creates: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
@@ -63,17 +63,3 @@
   community.docker.docker_compose_v2:
     project_src: "{{ monitoring_dir }}"
     state: present
-
-# --- Firewall: exponer Grafana y Prometheus ---
-
-- name: Permitir acceso a Grafana en el firewall
-  community.general.ufw:
-    rule: allow
-    port: '3000'
-    proto: tcp
-
-- name: Permitir acceso a Prometheus en el firewall
-  community.general.ufw:
-    rule: allow
-    port: '9090'
-    proto: tcp

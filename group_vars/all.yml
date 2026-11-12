@@ -18,5 +18,11 @@ docker_packages:
   - docker-buildx-plugin
   - docker-compose-plugin
 
+# Docker group membership grants root-equivalent access. Explicit opt-in only.
+docker_grant_admin_group: false
+
+# Optional lab stack; enabling it does not make it production-ready.
+enable_monitoring: false
 node_exporter_version: "1.12.1"
+node_exporter_archive: "node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
 monitoring_dir: "/opt/monitoring"

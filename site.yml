@@ -2,8 +2,29 @@
 - name: Bootstrap y hardening de servidor Ubuntu
   hosts: all
   become: true
+  pre_tasks:
+    - name: Comprobar archivos Docker APT que requieren migración manual
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/apt/sources.list.d/docker.list
+        - /etc/apt/sources.list.d/docker.sources
+      register: docker_existing_source_files
+
+    - name: Detenerse si existen archivos Docker APT anteriores
+      ansible.builtin.assert:
+        that:
+          - not item.stat.exists
+        fail_msg: >-
+          Existe {{ item.item }}. Revisar y migrar manualmente el repositorio Docker
+          antes de continuar; este playbook no elimina archivos existentes.
+      loop: "{{ docker_existing_source_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
   roles:
     - common
     - security
     - docker
-    - monitoring
+    - role: monitoring
+      when: enable_monitoring | bool

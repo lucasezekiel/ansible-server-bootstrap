@@ -1,21 +1,31 @@
 ---
+- name: Instalar la dependencia del módulo deb822
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+
 - name: Crear directorio para llaves GPG
   ansible.builtin.file:
     path: /etc/apt/keyrings
     state: directory
     mode: '0755'
 
-- name: Descargar y convertir la clave GPG oficial de Docker
-  ansible.builtin.shell: |
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  args:
-    creates: /etc/apt/keyrings/docker.gpg
+- name: Descargar la clave GPG oficial de Docker
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
 
 - name: Agregar el repositorio apt de Docker
-  ansible.builtin.apt_repository:
-    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+  ansible.builtin.deb822_repository:
+    name: ansible-docker
+    types: [deb]
+    uris: https://download.docker.com/linux/ubuntu
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: [stable]
+    architectures: [amd64]
+    signed_by: /etc/apt/keyrings/docker.asc
     state: present
-    filename: docker
 
 - name: Instalar paquetes de Docker
   ansible.builtin.apt:
@@ -34,3 +44,4 @@
     name: "{{ admin_user }}"
     groups: docker
     append: true
+  when: docker_grant_admin_group | bool
