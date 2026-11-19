@@ -43,7 +43,7 @@ An Ansible playbook that automates the bootstrap of a freshly installed Ubuntu s
 
 - Docker group membership provides root-equivalent access and is opt-in. Administrative commands without it normally require `sudo` on the target.
 - The playbook does not set an administrator password. On systems where sudo requires the user's password, provision it separately through a secure channel before relying on that account for sudo. Keep the original administrative access until the new account is verified.
-- Monitoring uses host networking and `latest` image tags. Loopback binding is intended to limit exposure, but is not yet verified by an integration test. Review Grafana's initial credentials and effective network exposure before use; do not expose this lab to untrusted networks.
+- Monitoring uses host networking and `latest` image tags. Loopback binding was verified manually on 24.04 (see `evidencias/`), but no automated test enforces it on every change. Review Grafana's initial credentials and effective network exposure before use; do not expose this lab to untrusted networks.
 - Docker networking can bypass expected UFW filtering for published ports; verify effective network exposure rather than relying on UFW rules alone.
 - SSH hardening can prevent remote access if the public key or target configuration is incorrect. Keep a separate administrative session and console access available while testing.
 - The SSH validation checks global effective settings. A fresh SSH connection was tested for the lab administrator, but other host- or user-specific `Match` rules must also be reviewed and tested.
@@ -75,7 +75,7 @@ An Ansible playbook that automates the bootstrap of a freshly installed Ubuntu s
 
 - Ansible collections `ansible.posix`, `community.general` and `community.docker` on the control node (versions in `requirements.yml`)
 - The static checks are configured for Ansible Core 2.22.0 and ansible-lint 26.11.0; see the scope of the VM test below
-- A disposable target server reachable via SSH (tested against Ubuntu 22.04.5 LTS on QEMU/KVM; an earlier version was tested with Multipass)
+- A disposable target server reachable via SSH (tested against Ubuntu 22.04.5 and 24.04.5 LTS on QEMU/KVM; an earlier version was tested with Multipass)
 - Your own SSH key pair (defaults to `~/.ssh/id_ed25519`)
 
 ## Usage
@@ -115,28 +115,28 @@ ansible-lint --offline --nocolor site.yml
 
 ## Lab test and idempotency
 
-The current deb822 revision was applied on an Ubuntu Server 22.04.5 QEMU/KVM VM restored to a pre-playbook baseline, using Ansible Core 2.22.0. The VM already had its administrator account and SSH key configured. The first run completed with:
+The playbook was tested on QEMU/KVM VMs with Ansible Core 2.22.0, restoring a pre-playbook snapshot before each test.
 
-```
-ubuntu_ansible_lab : ok=26  changed=10  unreachable=0  failed=0  skipped=10
-```
+| Target | Run | Result |
+|---|---|---|
+| Ubuntu 24.04.5 LTS (2026-11-19) | First | `ok=26 changed=12 unreachable=0 failed=0 skipped=10` |
+| Ubuntu 24.04.5 LTS | Repeat | `ok=25 changed=0 unreachable=0 failed=0 skipped=10` |
+| Ubuntu 24.04.5 LTS | With `enable_monitoring=true` | `ok=36 changed=11 unreachable=0 failed=0` |
+| Ubuntu 22.04.5 LTS | First (admin and key pre-existing) | `ok=26 changed=10 unreachable=0 failed=0 skipped=10` |
+| Ubuntu 22.04.5 LTS | Repeat | `ok=25 changed=0 unreachable=0 failed=0 skipped=10` |
 
-Afterward, the deb822 Docker source was present, Docker was active, and a fresh SSH connection with the lab key succeeded. For the lab user, the server offered only public-key authentication. Monitoring and Docker group membership were disabled and skipped. A repeat run within the APT cache validity window completed with:
+Verified on 24.04 after applying:
 
-```
-ubuntu_ansible_lab : ok=25  changed=0  unreachable=0  failed=0  skipped=10
-```
+- Effective `sshd -T`: `passwordauthentication no`, `kbdinteractiveauthentication no`, `permitrootlogin no`.
+- SSH access: the admin logs in with their key; password and root logins are refused.
+- UFW active with default deny and only `22/tcp` allowed.
+- Docker and `unattended-upgrades` active; `docker run hello-world` works.
+- Timezone set and clock synchronized.
+- **Monitoring:** Grafana, Prometheus and Node Exporter listen only on `127.0.0.1` (checked with `ss`) and are not reachable from the network. Grafana is reached through an SSH tunnel, and Prometheus scrapes Node Exporter (`UP`).
 
-For comparison, the preceding revision was repeated on an already provisioned VM within the APT cache validity window:
+📸 Screenshots and full output in [`evidencias/`](evidencias/README.md) (Spanish).
 
-```
-PLAY RECAP *********************************************************
-ubuntu_ansible_lab : ok=22  changed=0  unreachable=0  failed=0  skipped=10
-```
-
-Screenshots and command output from the lab runs are in [`evidencias/`](evidencias/).
-
-These results cover the particular lab state and configuration; they do not prove behavior on every host, migration of an existing Docker repository, or the optional monitoring role.
+These results cover those particular states and configurations; they do not prove behavior on every host or migration of an existing Docker repository.
 
 ## Design decisions
 
@@ -155,7 +155,7 @@ Both are instances of the same underlying pattern: **chained tasks that depend o
 ## Next improvements
 
 - Ansible Vault for sensitive variables
-- Verify loopback-only monitoring in an integration test, pin images and verify downloaded artifacts
+- Automate the loopback-only monitoring check, pin images and verify the Node Exporter checksum
 - Design and test an explicit migration procedure for previously configured hosts
 - Automated testing with Molecule
 - Add integration tests for real deployments

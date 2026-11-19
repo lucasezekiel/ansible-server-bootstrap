@@ -1,0 +1,18 @@
+$ bash -c ansible-playbook -i inventory/hosts.yml site.yml --syntax-check && ansible-lint --offline --nocolor site.yml && echo "ansible-lint: OK"
+
+playbook: site.yml
+[WARNING]: Deprecation warnings can be disabled by setting `deprecation_warnings=False` in ansible.cfg.
+[DEPRECATION WARNING]: oneline has been deprecated. Use another callback plugin, or vendor and/or move the oneline callback to a collection. This feature will be removed from ansible-core version 2.23.
+Origin: <unknown>
+
+oneline
+
+[DEPRECATION WARNING]: tree has been deprecated. Use another callback plugin, or vendor and/or move the tree callback to a collection. This feature will be removed from ansible-core version 2.23.
+Origin: <unknown>
+
+tree
+
+WARNING  Skipped installing collection dependencies due to running in offline mode.
+
+Passed: 0 failure(s), 0 warning(s) in 7 files processed of 7 encountered. Last profile that met the validation criteria was 'production'.
+ansible-lint: OK

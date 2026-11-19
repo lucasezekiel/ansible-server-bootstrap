@@ -1,0 +1,16 @@
+$ bash -c 
+echo "# 1) Administrador con clave pública: debe entrar"
+ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 lucas@192.168.122.33 "echo conectado como \$(whoami) en \$(hostname)"
+echo; echo "# 2) Forzando autenticación por contraseña: debe rechazarse"
+ssh -o BatchMode=yes -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive lucas@192.168.122.33 true
+echo; echo "# 3) Login directo como root: debe rechazarse"
+ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519_vms root@192.168.122.33 true
+true
+# 1) Administrador con clave pública: debe entrar
+conectado como lucas en ubuntu-util
+
+# 2) Forzando autenticación por contraseña: debe rechazarse
+lucas@192.168.122.33: Permission denied (publickey).
+
+# 3) Login directo como root: debe rechazarse
+root@192.168.122.33: Permission denied (publickey).

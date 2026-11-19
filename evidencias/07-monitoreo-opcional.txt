@@ -1,0 +1,152 @@
+$ ansible-playbook -i inventory/lab.yml site.yml -e enable_monitoring=true
+
+PLAY [Bootstrap y hardening de servidor Ubuntu] ********************************
+
+TASK [Gathering Facts] *********************************************************
+[WARNING]: Host 'ubuntu_ansible_lab' is using the discovered Python interpreter at '/usr/bin/python3.12', but future installation of another Python interpreter could cause a different interpreter to be discovered. See https://docs.ansible.com/ansible-core/2.22/reference_appendices/interpreter_discovery.html for more information.
+ok: [ubuntu_ansible_lab]
+
+TASK [Comprobar archivos Docker APT que requieren migración manual] ************
+ok: [ubuntu_ansible_lab] => (item=/etc/apt/sources.list.d/docker.list)
+ok: [ubuntu_ansible_lab] => (item=/etc/apt/sources.list.d/docker.sources)
+
+TASK [Detenerse si existen archivos Docker APT anteriores] *********************
+ok: [ubuntu_ansible_lab] => (item=/etc/apt/sources.list.d/docker.list) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "ansible_parsed": true,
+        "changed": false,
+        "failed": false,
+        "item": "/etc/apt/sources.list.d/docker.list",
+        "stat": {
+            "exists": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+ok: [ubuntu_ansible_lab] => (item=/etc/apt/sources.list.d/docker.sources) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "ansible_parsed": true,
+        "changed": false,
+        "failed": false,
+        "item": "/etc/apt/sources.list.d/docker.sources",
+        "stat": {
+            "exists": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+
+TASK [common : Actualizar índice de paquetes apt] ******************************
+ok: [ubuntu_ansible_lab]
+
+TASK [common : Instalar paquetes base] *****************************************
+ok: [ubuntu_ansible_lab]
+
+TASK [common : Configurar zona horaria] ****************************************
+ok: [ubuntu_ansible_lab]
+
+TASK [common : Asegurar sincronización de hora activa] *************************
+ok: [ubuntu_ansible_lab]
+
+TASK [common : Instalar unattended-upgrades] ***********************************
+ok: [ubuntu_ansible_lab]
+
+TASK [common : Habilitar actualizaciones automáticas de seguridad] *************
+ok: [ubuntu_ansible_lab]
+
+TASK [security : Crear usuario administrador con sudo] *************************
+ok: [ubuntu_ansible_lab]
+
+TASK [security : Copiar clave SSH pública al usuario administrador] ************
+ok: [ubuntu_ansible_lab]
+
+TASK [security : Configurar restricciones SSH en un archivo de prioridad temprana] ***
+ok: [ubuntu_ansible_lab]
+
+TASK [security : Consultar configuración SSH efectiva antes de reiniciar] ******
+ok: [ubuntu_ansible_lab]
+
+TASK [security : Verificar restricciones SSH globales antes de reiniciar] ******
+ok: [ubuntu_ansible_lab] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [security : Instalar UFW] *************************************************
+ok: [ubuntu_ansible_lab]
+
+TASK [security : Política por defecto - denegar entrante] **********************
+ok: [ubuntu_ansible_lab]
+
+TASK [security : Política por defecto - permitir saliente] *********************
+ok: [ubuntu_ansible_lab]
+
+TASK [security : Permitir SSH en el firewall] **********************************
+ok: [ubuntu_ansible_lab]
+
+TASK [security : Habilitar UFW] ************************************************
+ok: [ubuntu_ansible_lab]
+
+TASK [docker : Instalar la dependencia del módulo deb822] **********************
+ok: [ubuntu_ansible_lab]
+
+TASK [docker : Crear directorio para llaves GPG] *******************************
+ok: [ubuntu_ansible_lab]
+
+TASK [docker : Descargar la clave GPG oficial de Docker] ***********************
+ok: [ubuntu_ansible_lab]
+
+TASK [docker : Agregar el repositorio apt de Docker] ***************************
+ok: [ubuntu_ansible_lab]
+
+TASK [docker : Instalar paquetes de Docker] ************************************
+ok: [ubuntu_ansible_lab]
+
+TASK [docker : Asegurar que el servicio Docker esté activo y habilitado] *******
+ok: [ubuntu_ansible_lab]
+
+TASK [docker : Agregar el usuario administrador al grupo docker] ***************
+skipping: [ubuntu_ansible_lab]
+
+TASK [monitoring : Crear usuario de sistema para node_exporter] ****************
+changed: [ubuntu_ansible_lab]
+
+TASK [monitoring : Descargar y extraer node_exporter] **************************
+changed: [ubuntu_ansible_lab]
+
+TASK [monitoring : Instalar el binario en /usr/local/bin] **********************
+changed: [ubuntu_ansible_lab]
+
+TASK [monitoring : Crear unidad systemd para node_exporter] ********************
+changed: [ubuntu_ansible_lab]
+
+TASK [monitoring : Habilitar e iniciar node_exporter] **************************
+changed: [ubuntu_ansible_lab]
+
+TASK [monitoring : Crear directorio de monitoreo] ******************************
+changed: [ubuntu_ansible_lab]
+
+TASK [monitoring : Copiar configuración de Prometheus] *************************
+changed: [ubuntu_ansible_lab]
+
+TASK [monitoring : Copiar docker-compose.yml] **********************************
+changed: [ubuntu_ansible_lab]
+
+TASK [monitoring : Levantar el stack de monitoreo] *****************************
+changed: [ubuntu_ansible_lab]
+
+RUNNING HANDLER [monitoring : Reiniciar node_exporter] *************************
+changed: [ubuntu_ansible_lab]
+
+RUNNING HANDLER [monitoring : Reiniciar stack de monitoreo] ********************
+changed: [ubuntu_ansible_lab]
+
+PLAY RECAP *********************************************************************
+ubuntu_ansible_lab         : ok=36   changed=11   unreachable=0    failed=0    skipped=1    rescued=0    ignored=0   
+

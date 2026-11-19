@@ -70,7 +70,7 @@ Nodo de control (Ansible) ──SSH──▶ Ubuntu Server
 
 - Colecciones `ansible.posix`, `community.general` y `community.docker` en el nodo de control (versiones en `requirements.yml`).
 - Chequeos estáticos configurados para Ansible Core 2.22.0 y ansible-lint 26.11.0.
-- Un servidor de pruebas descartable accesible por SSH. Se probó con Ubuntu 22.04.5 LTS en QEMU/KVM; una versión anterior, con Multipass.
+- Un servidor de pruebas descartable accesible por SSH. Se probó con Ubuntu 22.04.5 y 24.04.5 LTS en QEMU/KVM; una versión anterior, con Multipass.
 - Un par de claves SSH propio (por defecto `~/.ssh/id_ed25519`).
 
 ## Uso
@@ -112,28 +112,34 @@ ansible-lint --offline --nocolor site.yml
 
 ## Prueba en laboratorio e idempotencia
 
-La revisión actual (repositorio deb822) se aplicó sobre una VM Ubuntu Server 22.04.5 en QEMU/KVM, restaurada a un estado previo al playbook, con Ansible Core 2.22.0. La VM ya tenía su cuenta de administrador y su clave SSH.
+El playbook se probó en VMs QEMU/KVM con Ansible Core 2.22.0, restaurando un snapshot previo a cada prueba.
 
-| Ejecución | Resultado |
-|---|---|
-| Primera | `ok=26 changed=10 unreachable=0 failed=0 skipped=10` |
-| Repetición (dentro de la ventana de caché de apt) | `ok=25 changed=0 unreachable=0 failed=0 skipped=10` |
-| Revisión anterior, sobre una VM ya aprovisionada | `ok=22 changed=0 unreachable=0 failed=0 skipped=10` |
+| Destino | Ejecución | Resultado |
+|---|---|---|
+| Ubuntu 24.04.5 LTS (2026-11-19) | Primera | `ok=26 changed=12 unreachable=0 failed=0 skipped=10` |
+| Ubuntu 24.04.5 LTS | Repetición | `ok=25 changed=0 unreachable=0 failed=0 skipped=10` |
+| Ubuntu 24.04.5 LTS | Con `enable_monitoring=true` | `ok=36 changed=11 unreachable=0 failed=0` |
+| Ubuntu 22.04.5 LTS | Primera (admin y clave preexistentes) | `ok=26 changed=10 unreachable=0 failed=0 skipped=10` |
+| Ubuntu 22.04.5 LTS | Repetición | `ok=25 changed=0 unreachable=0 failed=0 skipped=10` |
 
-Después de la primera ejecución:
+Verificado en 24.04 después de aplicar:
 
-- existía el repositorio de Docker en formato deb822 y Docker estaba activo;
-- una conexión SSH nueva con la clave del laboratorio funcionó;
-- para el usuario del laboratorio el servidor ofrecía solo autenticación por clave pública;
-- el monitoreo y el grupo `docker` quedaron desactivados (tareas omitidas).
+- `sshd -T` efectivo: `passwordauthentication no`, `kbdinteractiveauthentication no`, `permitrootlogin no`.
+- Acceso SSH: el administrador entra con su clave; se rechazan la contraseña y el login como root.
+- UFW activo, con denegación por defecto y solo `22/tcp` permitido.
+- Docker y `unattended-upgrades` activos; `docker run hello-world` funciona.
+- Zona horaria configurada y reloj sincronizado.
+- **Monitoreo:** Grafana, Prometheus y Node Exporter escuchan solo en `127.0.0.1` (comprobado con `ss`) y no son accesibles desde la red. Grafana se usa por túnel SSH y Prometheus recolecta Node Exporter (`UP`).
 
-Las capturas y salidas están en [`evidencias/`](evidencias/). Estos resultados valen para ese estado y esa configuración. No prueban el comportamiento en cualquier host, la migración de un repositorio de Docker existente ni el rol de monitoreo.
+📸 Capturas y salidas completas en [`evidencias/`](evidencias/README.md).
+
+Estos resultados valen para esos estados y configuraciones. No prueban el comportamiento en cualquier host ni la migración de un repositorio de Docker existente.
 
 ## Limitaciones de seguridad
 
 - **Grupo `docker`:** equivale a acceso root y por eso es opcional. Sin él, los comandos administrativos normalmente requieren `sudo`.
 - **Sin contraseña de administrador:** el playbook no la define. Si sudo la pide, configurala por un canal seguro y conservá el acceso original hasta verificar la cuenta nueva.
-- **Monitoreo:** usa red de host e imágenes `latest`. El bind a loopback limita la exposición, pero no está verificado con una prueba de integración. Revisá las credenciales iniciales de Grafana y no lo expongas a redes no confiables.
+- **Monitoreo:** usa red de host e imágenes `latest`. El bind a loopback se verificó manualmente en 24.04 (ver `evidencias/`), pero no hay una prueba automatizada que lo garantice en cada cambio. Revisá las credenciales iniciales de Grafana y no lo expongas a redes no confiables.
 - **Docker y UFW:** Docker puede saltear el filtrado de UFW para los puertos publicados; verificá la exposición real, no solo las reglas.
 - **Endurecimiento SSH:** un error en la clave o en la configuración del destino puede dejarte sin acceso. Mantené otra sesión abierta y acceso por consola.
 - **Validación SSH global:** se comprueba la configuración global efectiva; las reglas `Match` específicas por host o usuario hay que revisarlas aparte.
@@ -159,7 +165,7 @@ En ambos casos el patrón es el mismo: **las tareas encadenadas que dependen de 
 ## Próximas mejoras
 
 - Ansible Vault para variables sensibles.
-- Verificar con una prueba de integración que el monitoreo escucha solo en loopback; fijar versiones de imágenes y verificar artefactos.
+- Automatizar la verificación de loopback del monitoreo; fijar versiones de imágenes y verificar el checksum de Node Exporter.
 - Procedimiento de migración explícito para hosts ya configurados.
 - Pruebas automatizadas con Molecule.
 - Ejemplo de inventario multi-host (staging/producción).

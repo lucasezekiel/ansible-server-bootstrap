@@ -1,0 +1,21 @@
+$ bash -c 
+echo "# En el servidor: sockets en escucha de Grafana, Prometheus y Node Exporter"
+ssh ubuntu-util "sudo ss -tlnp | grep -E \":(3000|9090|9100)\b\""
+echo; echo "# En el servidor: los servicios responden por loopback"
+ssh ubuntu-util "curl -s -o /dev/null -w \"grafana    HTTP %{http_code}\n\" http://127.0.0.1:3000/login; curl -s -o /dev/null -w \"prometheus HTTP %{http_code}\n\" http://127.0.0.1:9090/-/ready; curl -s http://127.0.0.1:9100/metrics | grep -c ^node_ | sed \"s/^/node_exporter métricas: /\""
+echo; echo "# Desde el nodo de control (otra máquina): deben fallar"
+for p in 3000 9090 9100; do curl -s -m 3 -o /dev/null http://192.168.122.33:$p && echo "puerto $p ACCESIBLE" || echo "puerto $p no accesible desde la red"; done
+# En el servidor: sockets en escucha de Grafana, Prometheus y Node Exporter
+LISTEN 0      4096       127.0.0.1:3000      0.0.0.0:*    users:(("grafana",pid=7929,fd=68))                     
+LISTEN 0      4096       127.0.0.1:9090      0.0.0.0:*    users:(("prometheus",pid=7890,fd=7))                   
+LISTEN 0      4096       127.0.0.1:9100      0.0.0.0:*    users:(("node_exporter",pid=7726,fd=4))                
+
+# En el servidor: los servicios responden por loopback
+grafana    HTTP 200
+prometheus HTTP 200
+node_exporter métricas: 513
+
+# Desde el nodo de control (otra máquina): deben fallar
+puerto 3000 no accesible desde la red
+puerto 9090 no accesible desde la red
+puerto 9100 no accesible desde la red

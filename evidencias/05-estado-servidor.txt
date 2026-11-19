@@ -1,0 +1,38 @@
+$ ssh ubuntu-util set -x; sudo sshd -T | grep -E "^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|pubkeyauthentication) "; sudo ufw status verbose; systemctl is-active docker unattended-upgrades; sudo docker run --rm hello-world | grep -m1 Hello; timedatectl | grep -E "Time zone|synchronized"; id lucas
++ sudo sshd -T
++ grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|pubkeyauthentication) '
+permitrootlogin no
+pubkeyauthentication yes
+passwordauthentication no
+kbdinteractiveauthentication no
++ sudo ufw status verbose
+Status: active
+Logging: on (low)
+Default: deny (incoming), allow (outgoing), deny (routed)
+New profiles: skip
+
+To                         Action      From
+--                         ------      ----
+22/tcp (OpenSSH)           ALLOW IN    Anywhere                  
+22/tcp (OpenSSH (v6))      ALLOW IN    Anywhere (v6)             
+
++ systemctl is-active docker unattended-upgrades
+active
+active
++ sudo docker run --rm hello-world
++ grep -m1 Hello
+Unable to find image 'hello-world:latest' locally
+latest: Pulling from library/hello-world
+4f55086f7dd0: Pulling fs layer
+4f55086f7dd0: Download complete
+d5e71e642bf5: Download complete
+4f55086f7dd0: Pull complete
+Digest: sha256:1e4c05b897a751332ce85c7e9449da2d93514ea2dea6dbb0e2753c9e949b2bfa
+Status: Downloaded newer image for hello-world:latest
+Hello from Docker!
++ grep -E 'Time zone|synchronized'
++ timedatectl
+                Time zone: America/Argentina/Buenos_Aires (-03, -0300)
+System clock synchronized: yes
++ id lucas
+uid=1001(lucas) gid=1001(lucas) groups=1001(lucas),27(sudo)
