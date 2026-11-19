@@ -1,160 +1,169 @@
+🇪🇸 Español | [🇬🇧 English](README.en.md)
+
 # Ansible Server Bootstrap
 
-An Ansible playbook that automates the bootstrap of a freshly installed Ubuntu server: baseline configuration, security hardening, a Docker installation and an optional monitoring lab.
+[![Ansible checks](https://github.com/lucasezekiel/ansible-server-bootstrap/actions/workflows/ci.yml/badge.svg)](https://github.com/lucasezekiel/ansible-server-bootstrap/actions/workflows/ci.yml)
 
-> **Lab only — review before running.** This playbook changes users, SSH, firewall and Docker settings on the target. It is not a production-ready security baseline. Use a disposable test server with console access; running it against the wrong host can lock you out or expose services.
+Playbook de Ansible que automatiza la puesta en marcha de un servidor Ubuntu recién instalado. Incluye:
 
-## What it does
+- configuración base;
+- endurecimiento de seguridad (hardening);
+- instalación de Docker;
+- un laboratorio de monitoreo opcional.
 
-**`common` role**
+> **Solo para laboratorio: revisalo antes de ejecutarlo.** El playbook modifica usuarios, SSH, firewall y Docker en el destino. No es una línea base de seguridad lista para producción. Usá un servidor descartable con acceso por consola; ejecutarlo contra el equipo equivocado puede dejarte sin acceso o exponer servicios.
 
-- Updates the apt package index (bounded by a 1-hour cache window)
-- Installs base packages (`git`, `curl`, `wget`, `htop`, `unzip`, `ca-certificates`)
-- Sets the system timezone
-- Ensures time synchronization is active
-- Enables automatic security updates via `unattended-upgrades`
+## Qué hace
 
-**`security` role**
+**Rol `common`**
 
-- Creates an administrative user with sudo privileges
-- Copies the operator's SSH public key to the new user
-- Configures an early SSH drop-in to disable password and keyboard-interactive authentication, and validates the global effective settings before the SSH restart
-- Disables remote root login
-- Configures UFW with default deny/allow policies (incoming/outgoing), permitting SSH
+- Actualiza el índice de apt (con una ventana de caché de 1 hora).
+- Instala paquetes base: `git`, `curl`, `wget`, `htop`, `unzip`, `ca-certificates`.
+- Configura la zona horaria y verifica la sincronización de hora.
+- Activa las actualizaciones de seguridad automáticas con `unattended-upgrades`.
 
-**`docker` role**
+**Rol `security`**
 
-- Adds Docker's official GPG key and apt repository
-- Installs Docker Engine, CLI, containerd, Buildx and Compose plugins
-- Enables and starts the Docker service
-- Adds the administrative user to the `docker` group only if `docker_grant_admin_group` is enabled
+- Crea un usuario administrador con sudo y le copia la clave SSH pública del operador.
+- Agrega un drop-in de SSH temprano que desactiva la autenticación por contraseña y keyboard-interactive. Antes de reiniciar SSH valida la configuración **efectiva** (`sshd -T`).
+- Deshabilita el login remoto de root.
+- Configura UFW: deniega todo lo entrante salvo SSH y permite lo saliente.
 
-**`monitoring` role** (disabled by default)
+**Rol `docker`**
 
-- Installs Node Exporter from an upstream archive and runs it as a systemd service
-- Deploys Prometheus and Grafana with Docker Compose, using host networking
-- Binds Grafana (`3000/tcp`), Prometheus (`9090/tcp`) and Node Exporter (`9100/tcp`) to loopback; does not create firewall rules for them
+- Agrega la clave GPG y el repositorio oficial de Docker (formato deb822).
+- Instala Docker Engine, CLI, containerd, Buildx y Compose.
+- Habilita e inicia el servicio.
+- Agrega el administrador al grupo `docker` **solo** si `docker_grant_admin_group` está activado.
 
-### Security limitations
+**Rol `monitoring`** (desactivado por defecto)
 
-- Docker group membership provides root-equivalent access and is opt-in. Administrative commands without it normally require `sudo` on the target.
-- The playbook does not set an administrator password. On systems where sudo requires the user's password, provision it separately through a secure channel before relying on that account for sudo. Keep the original administrative access until the new account is verified.
-- Monitoring uses host networking and `latest` image tags. Loopback binding is intended to limit exposure, but is not yet verified by an integration test. Review Grafana's initial credentials and effective network exposure before use; do not expose this lab to untrusted networks.
-- Docker networking can bypass expected UFW filtering for published ports; verify effective network exposure rather than relying on UFW rules alone.
-- SSH hardening can prevent remote access if the public key or target configuration is incorrect. Keep a separate administrative session and console access available while testing.
-- The SSH validation checks global effective settings. A fresh SSH connection was tested for the lab administrator, but other host- or user-specific `Match` rules must also be reviewed and tested.
-- The SSH configuration depends on the target's `/etc/ssh/sshd_config` including `/etc/ssh/sshd_config.d/*.conf`. If an earlier setting takes precedence, validation fails before the restart; review and correct the file before a later restart.
-- The Node Exporter archive is downloaded without a checksum verification step. Verify artifacts before using them in a real environment.
-- Disabling an option or removing a task does not undo changes applied by an earlier version. In particular, review any existing `NOPASSWD` sudoers rules, Docker group membership, monitoring services and UFW rules separately before changing a previously configured target.
-- Docker APT sources now use the deb822 format. Before running any roles, the playbook stops if `/etc/apt/sources.list.d/docker.list` or `docker.sources` exists; review and migrate older or independently managed sources manually. Other duplicate sources may also exist under different names. No existing source is removed automatically.
+- Instala Node Exporter desde el archivo oficial y lo ejecuta como servicio systemd.
+- Despliega Prometheus y Grafana con Docker Compose en red de host.
+- Escucha solo en loopback: Grafana (`3000/tcp`), Prometheus (`9090/tcp`) y Node Exporter (`9100/tcp`). No abre reglas de firewall para ellos.
 
-## Project structure
-
+```text
+Nodo de control (Ansible) ──SSH──▶ Ubuntu Server
+                                     ├─ common      paquetes, zona horaria, unattended-upgrades
+                                     ├─ security    admin + clave, SSH endurecido, UFW
+                                     ├─ docker      repo oficial, Engine + Compose
+                                     └─ monitoring  Node Exporter, Prometheus, Grafana (opcional)
 ```
-├── inventory/hosts.yml       # target server(s) definition
-├── group_vars/all.yml        # variables (admin user, packages, timezone, SSH key path)
+
+## Estructura
+
+```text
+├── inventory/hosts.yml       # servidores destino
+├── group_vars/all.yml        # variables (admin, paquetes, zona horaria, clave SSH)
 ├── roles/
-│   ├── common/tasks/main.yml
-│   ├── security/
-│   │   ├── tasks/main.yml
-│   │   └── handlers/main.yml # SSH restart, only triggered on real changes
-│   ├── docker/tasks/main.yml
-│   └── monitoring/           # Node Exporter, Prometheus and Grafana
-├── site.yml                  # entry playbook
-├── requirements.yml          # pinned Ansible collection versions
-├── .github/workflows/ci.yml  # static checks
-├── .gitignore
-└── LICENSE
+│   ├── common/
+│   ├── security/             # handler: reinicia SSH solo ante cambios reales
+│   ├── docker/
+│   └── monitoring/           # Node Exporter, Prometheus, Grafana
+├── evidencias/               # capturas y salidas de ejecuciones reales
+├── site.yml                  # playbook de entrada
+├── requirements.yml          # colecciones de Ansible con versión fija
+└── .github/workflows/ci.yml  # chequeos estáticos
 ```
 
-## Requirements
+## Requisitos
 
-- Ansible collections `ansible.posix`, `community.general` and `community.docker` on the control node (versions in `requirements.yml`)
-- The static checks are configured for Ansible Core 2.22.0 and ansible-lint 26.11.0; see the scope of the VM test below
-- A disposable target server reachable via SSH (tested against Ubuntu 22.04.5 LTS on QEMU/KVM; an earlier version was tested with Multipass)
-- Your own SSH key pair (defaults to `~/.ssh/id_ed25519`)
+- Colecciones `ansible.posix`, `community.general` y `community.docker` en el nodo de control (versiones en `requirements.yml`).
+- Chequeos estáticos configurados para Ansible Core 2.22.0 y ansible-lint 26.11.0.
+- Un servidor de pruebas descartable accesible por SSH. Se probó con Ubuntu 22.04.5 LTS en QEMU/KVM; una versión anterior, con Multipass.
+- Un par de claves SSH propio (por defecto `~/.ssh/id_ed25519`).
 
-## Usage
+## Uso
 
-**Before running:** `inventory/hosts.yml` uses `192.0.2.10`, an address reserved for documentation, not a configured target. Prepare your own inventory and check that it points only to the intended lab host. Set `ansible_user` to the account used for the initial SSH connection, `admin_user` to the administrator the playbook should manage, and `ssh_pubkey_path` to the public key you can use to reconnect. The defaults are examples, not universal values. Keep console access and a recovery point available.
+**Antes de ejecutar:** `inventory/hosts.yml` apunta a `192.0.2.10`, una dirección reservada para documentación. Prepará tu propio inventario y revisá estas variables:
 
-Install the declared collections on the control node:
+- `ansible_user`: la cuenta de la conexión SSH inicial;
+- `admin_user`: el administrador que gestionará el playbook;
+- `ssh_pubkey_path`: la clave pública con la que vas a volver a conectarte.
+
+Los valores por defecto son ejemplos. Tené a mano acceso por consola y un punto de restauración (snapshot).
 
 ```bash
 ansible-galaxy collection install -r requirements.yml
-```
 
-```bash
-# Verify connectivity
+# Conectividad
 ansible -i inventory/hosts.yml all -m ping
 
-# Verify which hosts the playbook would select
+# Qué hosts se seleccionarían
 ansible-playbook -i inventory/hosts.yml site.yml --list-hosts
 
-# Simulate supported tasks; check mode is not a guarantee of zero side effects
+# Simulación (el modo check no garantiza cero efectos secundarios)
 ansible-playbook -i inventory/hosts.yml site.yml --check --ask-become-pass
 
-# Apply for real
+# Aplicar
 ansible-playbook -i inventory/hosts.yml site.yml --ask-become-pass
 ```
 
-Docker group membership and monitoring are disabled by default in `group_vars/all.yml`. To enable either for a disposable lab, set `docker_grant_admin_group` or `enable_monitoring` to `true` after reviewing the security limitations above. If group membership is enabled, a new SSH session is needed for it to take effect.
+La membresía al grupo `docker` y el monitoreo están desactivados en `group_vars/all.yml`. Para activarlos en un laboratorio descartable, poné `docker_grant_admin_group` o `enable_monitoring` en `true` después de leer las limitaciones de seguridad. El cambio de grupo requiere una sesión SSH nueva.
 
-## Static validation
+## Validación estática
 
-The GitHub Actions workflow is configured to check playbook syntax and run ansible-lint on pushes and pull requests; its first remote run is still pending. These checks do not connect to a target or verify deployment behavior. Run the same checks locally after installing the required tools and collections:
+GitHub Actions verifica la sintaxis del playbook y corre ansible-lint en cada push y pull request (el badge muestra el último resultado). Estos chequeos no se conectan a ningún destino ni verifican el comportamiento del despliegue. Localmente:
 
 ```bash
 ansible-playbook -i inventory/hosts.yml site.yml --syntax-check
 ansible-lint --offline --nocolor site.yml
 ```
 
-## Lab test and idempotency
+## Prueba en laboratorio e idempotencia
 
-The current deb822 revision was applied on an Ubuntu Server 22.04.5 QEMU/KVM VM restored to a pre-playbook baseline, using Ansible Core 2.22.0. The VM already had its administrator account and SSH key configured. The first run completed with:
+La revisión actual (repositorio deb822) se aplicó sobre una VM Ubuntu Server 22.04.5 en QEMU/KVM, restaurada a un estado previo al playbook, con Ansible Core 2.22.0. La VM ya tenía su cuenta de administrador y su clave SSH.
 
-```
-ubuntu_ansible_lab : ok=26  changed=10  unreachable=0  failed=0  skipped=10
-```
+| Ejecución | Resultado |
+|---|---|
+| Primera | `ok=26 changed=10 unreachable=0 failed=0 skipped=10` |
+| Repetición (dentro de la ventana de caché de apt) | `ok=25 changed=0 unreachable=0 failed=0 skipped=10` |
+| Revisión anterior, sobre una VM ya aprovisionada | `ok=22 changed=0 unreachable=0 failed=0 skipped=10` |
 
-Afterward, the deb822 Docker source was present, Docker was active, and a fresh SSH connection with the lab key succeeded. For the lab user, the server offered only public-key authentication. Monitoring and Docker group membership were disabled and skipped. A repeat run within the APT cache validity window completed with:
+Después de la primera ejecución:
 
-```
-ubuntu_ansible_lab : ok=25  changed=0  unreachable=0  failed=0  skipped=10
-```
+- existía el repositorio de Docker en formato deb822 y Docker estaba activo;
+- una conexión SSH nueva con la clave del laboratorio funcionó;
+- para el usuario del laboratorio el servidor ofrecía solo autenticación por clave pública;
+- el monitoreo y el grupo `docker` quedaron desactivados (tareas omitidas).
 
-For comparison, the preceding revision was repeated on an already provisioned VM within the APT cache validity window:
+Las capturas y salidas están en [`evidencias/`](evidencias/). Estos resultados valen para ese estado y esa configuración. No prueban el comportamiento en cualquier host, la migración de un repositorio de Docker existente ni el rol de monitoreo.
 
-```
-PLAY RECAP *********************************************************
-ubuntu_ansible_lab : ok=22  changed=0  unreachable=0  failed=0  skipped=10
-```
+## Limitaciones de seguridad
 
-These results cover the particular lab state and configuration; they do not prove behavior on every host, migration of an existing Docker repository, or the optional monitoring role.
+- **Grupo `docker`:** equivale a acceso root y por eso es opcional. Sin él, los comandos administrativos normalmente requieren `sudo`.
+- **Sin contraseña de administrador:** el playbook no la define. Si sudo la pide, configurala por un canal seguro y conservá el acceso original hasta verificar la cuenta nueva.
+- **Monitoreo:** usa red de host e imágenes `latest`. El bind a loopback limita la exposición, pero no está verificado con una prueba de integración. Revisá las credenciales iniciales de Grafana y no lo expongas a redes no confiables.
+- **Docker y UFW:** Docker puede saltear el filtrado de UFW para los puertos publicados; verificá la exposición real, no solo las reglas.
+- **Endurecimiento SSH:** un error en la clave o en la configuración del destino puede dejarte sin acceso. Mantené otra sesión abierta y acceso por consola.
+- **Validación SSH global:** se comprueba la configuración global efectiva; las reglas `Match` específicas por host o usuario hay que revisarlas aparte.
+- **Include de `sshd_config.d`:** el drop-in depende de que `/etc/ssh/sshd_config` incluya `/etc/ssh/sshd_config.d/*.conf`. Si un ajuste anterior tiene prioridad, la validación falla antes del reinicio.
+- **Node Exporter:** se descarga sin verificar el checksum.
+- **Desactivar no revierte:** apagar una opción o quitar una tarea no deshace lo aplicado antes. Revisá aparte reglas `NOPASSWD`, grupo `docker`, servicios de monitoreo y reglas de UFW previas.
+- **Fuentes APT de Docker:** antes de ejecutar los roles, el playbook se detiene si existe `/etc/apt/sources.list.d/docker.list` o `docker.sources`. Esas fuentes se migran a mano; no se borra ninguna automáticamente.
 
-## Design decisions
+## Decisiones de diseño
 
-- **UFW instead of raw iptables**: prioritizes readability and maintainability over granular control, which fits the scope of this project.
-- **Handler for the SSH restart**: the service is restarted only when the managed SSH drop-in changes, after checking the effective global configuration.
-- **Bounded apt cache refresh (`cache_valid_time: 3600`)**: the apt index is only refreshed if the last update is more than an hour old. This is a deliberate, time-windowed form of idempotency rather than a strict one — refreshing on every run would report `changed` even when no new packages exist, adding noise without value.
-- **Docker installed from the official upstream repository** rather than the distro's default packages, to track upstream releases directly.
+- **UFW en lugar de iptables directo:** prioriza legibilidad y mantenimiento sobre el control granular, adecuado para el alcance del proyecto.
+- **Handler para reiniciar SSH:** solo reinicia cuando cambia el drop-in y después de validar la configuración efectiva.
+- **Caché de apt acotada (`cache_valid_time: 3600`):** idempotencia con ventana de tiempo. Actualizar en cada ejecución reportaría `changed` sin aportar nada.
+- **Docker desde el repositorio oficial:** sigue las versiones de upstream en lugar de los paquetes de la distribución.
 
-## Known limitations
+## Limitaciones conocidas
 
-- **SSH key task under `--check`**: the task that copies the SSH public key depends on the admin user already existing. In simulation mode, Ansible never creates the user for real, so this specific task fails under `--check` even though the real run completes without issues.
-- **Docker role under `--check`**: repository configuration depends on `python3-debian` and the key file being present, and package installation depends on the repository being configured. On a fresh target, simulation may fail because earlier tasks do not create these prerequisites in check mode; the current deb822 version has not been tested in check mode on a clean VM.
+- **Clave SSH bajo `--check`:** la tarea depende de que el usuario exista. En simulación nunca se crea, así que falla en `--check` aunque la ejecución real funciona.
+- **Rol Docker bajo `--check`:** el repositorio depende de `python3-debian` y de la clave, y los paquetes dependen del repositorio. En un destino limpio la simulación puede fallar. La versión deb822 no se probó en modo check sobre una VM limpia.
 
-Both are instances of the same underlying pattern: **chained tasks that depend on a previous task's real-world side effect will report false failures under `--check`.** This is a documented Ansible behavior, not a bug in this playbook.
+En ambos casos el patrón es el mismo: **las tareas encadenadas que dependen de un efecto real de una tarea anterior dan falsos fallos en `--check`.** Es un comportamiento documentado de Ansible, no un bug del playbook.
 
-## Next improvements
+## Próximas mejoras
 
-- Ansible Vault for sensitive variables
-- Verify loopback-only monitoring in an integration test, pin images and verify downloaded artifacts
-- Design and test an explicit migration procedure for previously configured hosts
-- Automated testing with Molecule
-- Verify the GitHub Actions workflow after publishing; add integration tests for real deployments
-- Multi-host inventory example (staging/production groups)
+- Ansible Vault para variables sensibles.
+- Verificar con una prueba de integración que el monitoreo escucha solo en loopback; fijar versiones de imágenes y verificar artefactos.
+- Procedimiento de migración explícito para hosts ya configurados.
+- Pruebas automatizadas con Molecule.
+- Ejemplo de inventario multi-host (staging/producción).
 
-## License
+## Licencia
 
-MIT — see [LICENSE](LICENSE)
+MIT. Ver [LICENSE](LICENSE).
